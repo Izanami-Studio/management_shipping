@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: shipping-service
+
+server:
+  port: 8080
+
+shipping:
+  origin-state: SP
+  same-state-cost: 10.00
+  different-state-cost: 20.00
+  free-shipping-threshold: 200.00
+
+viacep:
+  base-url: https://viacep.com.br/ws
+  timeout: 5000
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
