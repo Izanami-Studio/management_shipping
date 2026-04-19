@@ -1,0 +1,125 @@
+{
+  "name": "management_shipping",
+  "type": "backend",
+  "domain": "E-commerce Logistics / Shipping",
+  "description": "Stateless microservice that calculates shipping cost for e-commerce orders and resolves Brazilian postal addresses (CEP). It exists to offload logistics pricing decisions from upstream cart/order services, applying configurable rules (free shipping threshold and state-based fees) based on the destination resolved through the ViaCEP public API.",
+  "architecture": {
+    "style": "Layered monolith (Spring Boot REST microservice)",
+    "layers": [
+      "controller (REST entrypoint)",
+      "service (business rules and orchestration)",
+      "client (outbound HTTP integration with ViaCEP)",
+      "dto (request/response contracts)",
+      "exception (custom exceptions + global handler)",
+      "config (externalized properties and beans)"
+    ],
+    "notes": "Single-origin design: origin state is a single scalar in config, preventing multi-warehouse scenarios. Business rules (costs, threshold) are hardcoded as a 3-branch if/else with no strategy abstraction, making future tiers (weight, distance, carrier) require modifying ShippingService directly. ShippingService couples orchestration (address lookup) with pricing logic, violating SRP. No caching layer, no resilience patterns (retry/circuit breaker/bulkhead) around the external ViaCEP dependency, which is a single point of failure for both endpoints. No authentication/authorization layer — endpoints are publicly exposed. No idempotency or request correlation ID beyond an optional free-text cartId."
+  },
+  "features": [
+    "Address lookup by CEP via GET /address/{cep} with sanitization of non-numeric characters",
+    "Shipping cost calculation via GET /shipping using subtotal, destination CEP and optional cartId",
+    "Free shipping rule applied when subtotal is greater than or equal to configured threshold (default R$200)",
+    "State-based pricing: fixed cost for same-state vs different-state deliveries relative to configured origin state",
+    "Centralized error handling mapping domain exceptions to standardized HTTP codes (400/404/503/500)",
+    "OpenAPI/Swagger UI documentation exposed at /swagger-ui.html",
+    "Externalized configuration for costs, threshold, origin state, ViaCEP base URL and timeout"
+  ],
+  "businessRules": [
+    "Subtotal must be non-null and greater than or equal to zero, otherwise request is rejected with 400",
+    "Free shipping applies when subtotal >= freeShippingThreshold and takes priority over state-based rules",
+    "If free shipping does not apply and destination state equals originState (case-insensitive), sameStateCost is charged",
+    "If free shipping does not apply and destination state differs from originState, differentStateCost is charged",
+    "CEP must contain exactly 8 digits after stripping non-numeric characters; otherwise InvalidCepException → 400",
+    "CEP not found in ViaCEP (erro=true or null response) results in 404 CepNotFoundException",
+    "ViaCEP timeouts or connection failures are translated to 503 ExternalApiException (no retry)"
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/address/{cep}",
+      "description": "Resolves a Brazilian CEP into a structured address (street, city, state, formatted cep) via ViaCEP",
+      "responses": ["200", "400 invalid CEP format", "404 CEP not found", "503 ViaCEP unavailable"]
+    },
+    {
+      "method": "GET",
+      "path": "/shipping",
+      "description": "Calculates shipping cost from subtotal and destination CEP; cartId is optional and used only for log traceability",
+      "queryParams": ["subtotal (BigDecimal, required, >=0)", "cep (String, required, 8 digits)", "cartId (String, optional)"],
+      "responses": ["200", "400 invalid params", "404 CEP not found", "503 ViaCEP unavailable"]
+    }
+  ],
+  "entities": [
+    "AddressResponse (street, city, state, cep) — outbound DTO",
+    "ShippingResponse (shippingCost, destinationState, freeShipping) — outbound DTO",
+    "ViaCepResponse (logradouro, localidade, uf, cep, erro) — external contract DTO",
+    "ErrorResponse (status, message, timestamp) — standardized error envelope",
+    "No persistent domain entities — service is fully stateless, no database layer"
+  ],
+  "externalIntegrations": [
+    "ViaCEP public REST API (https://viacep.com.br/ws/{cep}/json/) — synchronous RestTemplate call with configurable timeout (default 5000ms), no API key, no retry, no cache, no circuit breaker"
+  ],
+  "technicalStack": [
+    "Java 17",
+    "Spring Boot 3.2",
+    "Spring Web (RestTemplate, @RestController)",
+    "Spring Boot Configuration Properties",
+    "Lombok",
+    "SpringDoc OpenAPI (Swagger UI)",
+    "SLF4J / Logback logging",
+    "JUnit 5 + Mockito + AssertJ",
+    "Maven (mvnw wrapper)"
+  ],
+  "knownIssues": [
+    "No retry mechanism on ViaCEP calls — a single transient failure immediately surfaces as 503 to clients",
+    "No caching of CEP lookups — every shipping calculation hits ViaCEP even for repeated CEPs, increasing latency and risk of rate-limiting",
+    "No circuit breaker — sustained ViaCEP degradation will block threads up to timeout on every request",
+    "RestTemplate is used (legacy/maintenance mode) instead of WebClient/RestClient, limiting non-blocking and modern resilience integration",
+    "Endpoints are unauthenticated and unthrottled, exposing ViaCEP quota and shipping logic to abuse",
+    "Origin state is a single scalar (shipping.origin-state) — cannot model multiple warehouses or dynamic origin",
+    "Subtotal validation rejects negatives but does not validate NaN/scale/currency or an upper bound; null is handled but the controller signature makes Spring return 400 before reaching the service, producing an inconsistent error message path vs IllegalArgumentException",
+    "cartId is accepted but never validated, persisted, or correlated via MDC — traceability is limited to log concatenation",
+    "No request correlation ID / MDC — logs from controller, service, and client cannot be easily stitched under concurrent load",
+    "Subtotal comparison uses BigDecimal.compareTo correctly but there is no rounding/scale normalization, so inputs like 200.000 vs 200.00 behave identically only by coincidence of compareTo semantics; response shippingCost is returned with the scale from configuration without explicit formatting",
+    "ViaCepClient leaks wall-clock timing via System.currentTimeMillis instead of a Timer/Micrometer metric — no real observability of external latency percentiles",
+    "Generic Exception handler returns 500 with a masked message but logs full stack trace; no error code/categorization is surfaced to clients"
+  ],
+  "technicalDebts": [
+    "Shipping pricing implemented as inline if/else inside ShippingService — no Strategy/Rule abstraction to add weight/distance/carrier tiers",
+    "AddressService is invoked directly from ShippingService, coupling pricing to the external dependency and preventing independent testing of the pricing algorithm with a pre-resolved state",
+    "Use of RestTemplate without a dedicated HTTP connection pool configuration or Micrometer instrumentation",
+    "Business thresholds and costs live in a single flat ShippingProperties class — no validation (@Min, @NotNull) on loaded properties, so misconfiguration fails only at runtime",
+    "No integration tests (only unit tests with mocks); ViaCepClient error branches are not covered by WireMock/MockRestServiceServer",
+    "No API versioning (/v1) on endpoints, making future contract changes breaking",
+    "Log messages are mixed Portuguese/English and rely on string interpolation of optional fields (N/A fallback) instead of structured logging (key-value/JSON)"
+  ],
+  "codeSmells": [
+    "Duplicated 'cartId != null ? cartId : \"N/A\"' fallback repeated across controller and service log statements",
+    "Magic log-tag strings ('[SHIPPING_SERVICE]', '[VIACEP_CLIENT]', etc.) hardcoded instead of using MDC or a logging facade",
+    "ShippingService.calculateShipping mixes validation, orchestration, rule selection and response building in a single method",
+    "Primitive obsession: CEP is passed around as String across layers without a value object enforcing the 8-digit invariant",
+    "ViaCepClient catches broad RestClientException and collapses multiple failure modes (4xx, 5xx, parse error) into one ExternalApiException → 503, which is incorrect for non-retriable client errors"
+  ],
+  "testCoverage": {
+    "level": "low",
+    "notes": "Only two unit test classes exist (ShippingServiceTest, AddressServiceTest) plus the default Spring context test. ShippingServiceTest covers 4 happy-path variants and a single negative-subtotal case; no tests for null subtotal, ViaCEP failures propagating through ShippingService, invalid CEP format, case-insensitive state match, or exact boundary below threshold (e.g., 199.99). No tests for ViaCepClient (timeout/404/erro=true branches) or GlobalExceptionHandler mappings. No integration tests and no contract tests against ViaCEP."
+  },
+  "observability": {
+    "logging": "SLF4J logs at INFO/WARN/ERROR are present in controller, services, client and exception handler, with timing via System.currentTimeMillis for the ViaCEP call and the /shipping request.",
+    "notes": "No structured logging (plain interpolated strings, mixed Portuguese/English), no MDC/correlation ID, no Micrometer metrics, no tracing (OpenTelemetry/Sleuth), no health/readiness endpoints beyond Spring Boot defaults (Actuator is not declared in pom). Latency is logged but not exported as a metric; no alerting surface."
+  },
+  "exerciseHooks": [
+    "Introduce Spring Cache (Caffeine) or Redis on AddressService.lookupAddress keyed by sanitized CEP with TTL to eliminate redundant ViaCEP calls",
+    "Add Resilience4j retry with exponential backoff around ViaCepClient.fetchAddress for ResourceAccessException only (not for CepNotFoundException)",
+    "Wrap ViaCepClient in a Resilience4j circuit breaker and expose its state via Actuator/Micrometer",
+    "Refactor pricing into a ShippingRule/Strategy chain (FreeShippingRule, SameStateRule, DifferentStateRule) ordered by priority to enable weight/distance tiers without editing ShippingService",
+    "Extract a CEP value object enforcing the 8-digit invariant at construction, removing duplicated sanitize/validate logic from AddressService",
+    "Replace RestTemplate with RestClient/WebClient and configure a dedicated HTTP connection pool with Micrometer timers",
+    "Add a correlation ID filter that populates MDC from an incoming X-Request-Id (or cartId) header so all logs of a single request share the same traceId",
+    "Add @Validated + @Min/@NotNull on ShippingProperties and fail fast on startup when costs or threshold are missing or negative",
+    "Add integration tests for ViaCepClient using MockRestServiceServer/WireMock covering erro=true, 5xx, and timeout paths",
+    "Add tests for GlobalExceptionHandler covering each mapped exception → HTTP status and ErrorResponse shape",
+    "Distinguish ViaCEP 4xx (non-retriable) from 5xx/timeout (retriable) in ViaCepClient and map them to different HTTP statuses instead of collapsing into 503",
+    "Introduce API versioning (/v1/shipping, /v1/address) and a minimal authentication layer (API key or JWT) before exposing publicly",
+    "Support multiple origin states / warehouses by turning shipping.origin-state into a list and selecting the nearest origin per destination"
+  ]
+}
