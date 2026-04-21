@@ -69,7 +69,6 @@ public class ShippingService {
      * @return {@link ShippingResponse} with calculated cost, destination state, and free shipping flag
      * @throws IllegalArgumentException if subtotal is null or negative
      */
-    @Cacheable("shipping")
     public ShippingResponse calculateShipping(BigDecimal subtotal, String cep, String cartId) {
         validateSubtotal(subtotal);
 
