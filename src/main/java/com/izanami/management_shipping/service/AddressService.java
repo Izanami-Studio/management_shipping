@@ -6,6 +6,7 @@ import com.izanami.management_shipping.dto.ViaCepResponse;
 import com.izanami.management_shipping.exception.InvalidCepException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -52,6 +53,7 @@ public class AddressService {
      * @throws com.izanami.management_shipping.exception.CepNotFoundException if the CEP does not exist in ViaCEP
      * @throws com.izanami.management_shipping.exception.ExternalApiException if there is a communication failure with ViaCEP
      */
+    @Cacheable("address")
     public AddressResponse lookupAddress(String cep) {
         String sanitizedCep = sanitizeCep(cep);
         validateCep(sanitizedCep);

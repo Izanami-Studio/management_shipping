@@ -5,6 +5,7 @@ import com.izanami.management_shipping.dto.AddressResponse;
 import com.izanami.management_shipping.dto.ShippingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -68,6 +69,7 @@ public class ShippingService {
      * @return {@link ShippingResponse} with calculated cost, destination state, and free shipping flag
      * @throws IllegalArgumentException if subtotal is null or negative
      */
+    @Cacheable("shipping")
     public ShippingResponse calculateShipping(BigDecimal subtotal, String cep, String cartId) {
         validateSubtotal(subtotal);
 
