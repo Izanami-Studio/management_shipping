@@ -1,6 +1,8 @@
 spring:
   application:
     name: shipping-service
+cache:
+  ttl: 10m
 
 server:
   port: 8080
