@@ -2,6 +2,7 @@ package com.izanami.management_shipping.service;
 
 import com.izanami.management_shipping.client.ViaCepClient;
 import com.izanami.management_shipping.dto.ViaCepResponse;
+import com.izanami.management_shipping.exception.InvalidCepException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,8 @@ import org.springframework.cache.CacheManager;
 
 import java.util.Objects;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
@@ -31,6 +34,20 @@ class AddressServiceCacheTest {
         Objects.requireNonNull(cacheManager.getCache("address")).clear();
         reset(viaCepClient);
     }
+
+    @Test
+    @DisplayName("Invalid CEP should never be cached and should not call ViaCEP")
+    void invalidCepShouldNotBeCached() {
+        assertThatThrownBy(() -> addressService.lookupAddress("1234"))
+                .isInstanceOf(InvalidCepException.class);
+        assertThatThrownBy(() -> addressService.lookupAddress("1234"))
+                .isInstanceOf(InvalidCepException.class);
+
+        verifyNoInteractions(viaCepClient);
+        assertThat(Objects.requireNonNull(cacheManager.getCache("address"))
+                .get("1234")).isNull();
+    }
+
 
     @Test
     @DisplayName("Second lookup for the same CEP should be served from cache (ViaCEP called once)")

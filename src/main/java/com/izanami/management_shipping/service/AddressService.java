@@ -53,7 +53,8 @@ public class AddressService {
      * @throws com.izanami.management_shipping.exception.CepNotFoundException if the CEP does not exist in ViaCEP
      * @throws com.izanami.management_shipping.exception.ExternalApiException if there is a communication failure with ViaCEP
      */
-    @Cacheable(value="address",  key="#cep.replaceAll('[^0-9]','')")
+    @Cacheable(value = "address",
+            key = "T(com.izanami.management_shipping.util.CepSanitizer).sanitize(#cep)")
     public AddressResponse lookupAddress(String cep) {
         String sanitizedCep = sanitizeCep(cep);
         validateCep(sanitizedCep);

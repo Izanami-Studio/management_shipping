@@ -17,6 +17,10 @@ viacep:
   base-url: https://viacep.com.br/ws
   timeout: 5000
 
+logging:
+  level:
+    com.izanami.management_shipping.config.LoggingCaffeineCache: DEBUG
+
 springdoc:
   api-docs:
     path: /api-docs

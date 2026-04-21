@@ -15,10 +15,12 @@ public class LoggingCaffeineCache extends CaffeineCache {
     @Override
     protected Object lookup(Object key) {
         Object value = super.lookup(key);
-        if (value != null) {
-            log.info("Cache HIT  [{}] key={}", getName(), key);
-        } else {
-            log.info("Cache MISS [{}] key={}", getName(), key);
+        if (log.isDebugEnabled()) {
+            if (value != null) {
+                log.debug("Cache HIT  [{}] key={}", getName(), key);
+            } else {
+                log.debug("Cache MISS [{}] key={}", getName(), key);
+            }
         }
         return value;
     }
