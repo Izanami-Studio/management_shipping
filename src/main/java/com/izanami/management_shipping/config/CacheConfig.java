@@ -18,9 +18,13 @@ public class CacheConfig {
     @Value("${cache.ttl}")
     private Duration cacheTtl;
 
+    @Value("${cache.expire}")
+    private Long cacheExpire;
+
     @Bean
     public Caffeine<Object, Object> caffeineConfig() {
         return Caffeine.newBuilder()
+                .maximumSize(cacheExpire)
                 .expireAfterWrite(cacheTtl)
                 .recordStats();
     }

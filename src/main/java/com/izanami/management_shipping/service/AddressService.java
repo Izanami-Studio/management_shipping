@@ -56,12 +56,12 @@ public class AddressService {
     @Cacheable(value = "address",
             key = "T(com.izanami.management_shipping.util.CepSanitizer).sanitize(#cep)")
     public AddressResponse lookupAddress(String cep) {
-        String sanitizedCep = sanitizeCep(cep);
-        validateCep(sanitizedCep);
 
-        log.info("[ADDRESS_SERVICE] Iniciando consulta ViaCEP - cepOriginal={}, cepSanitizado={}", cep, sanitizedCep);
+        validateCep(cep);
 
-        ViaCepResponse viaCepResponse = viaCepClient.fetchAddress(sanitizedCep);
+        log.info("[ADDRESS_SERVICE] Iniciando consulta ViaCEP - cepOriginal={}, cepSanitizado={}", cep, cep);
+
+        ViaCepResponse viaCepResponse = viaCepClient.fetchAddress(cep);
 
         AddressResponse response = AddressResponse.builder()
                 .street(viaCepResponse.getLogradouro())
@@ -71,20 +71,11 @@ public class AddressService {
                 .build();
 
         log.info("[ADDRESS_SERVICE] Endereço resolvido - cep={}, rua={}, cidade={}, estado={}",
-                sanitizedCep, response.getStreet(), response.getCity(), response.getState());
+                cep, response.getStreet(), response.getCity(), response.getState());
 
         return response;
     }
 
-    /**
-     * Removes non-numeric characters from the CEP.
-     *
-     * @param cep CEP with possible formatting (e.g., "01001-000")
-     * @return CEP containing only digits (e.g., "01001000")
-     */
-    private String sanitizeCep(String cep) {
-        return cep.replaceAll("[^0-9]", "");
-    }
 
     /**
      * Validates that the CEP has exactly 8 numeric digits.
