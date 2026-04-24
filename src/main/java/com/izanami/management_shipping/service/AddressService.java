@@ -4,6 +4,7 @@ import com.izanami.management_shipping.client.ViaCepClient;
 import com.izanami.management_shipping.dto.AddressResponse;
 import com.izanami.management_shipping.dto.ViaCepResponse;
 import com.izanami.management_shipping.exception.InvalidCepException;
+import com.izanami.management_shipping.util.CepSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -56,12 +57,12 @@ public class AddressService {
     @Cacheable(value = "address",
             key = "T(com.izanami.management_shipping.util.CepSanitizer).sanitize(#cep)")
     public AddressResponse lookupAddress(String cep) {
+        String sanitizedCep = CepSanitizer.sanitize(cep);
+        validateCep(sanitizedCep);
 
-        validateCep(cep);
+        log.info("[ADDRESS_SERVICE] Iniciando consulta ViaCEP - cepOriginal={}, cepSanitizado={}", cep, sanitizedCep);
 
-        log.info("[ADDRESS_SERVICE] Iniciando consulta ViaCEP - cepOriginal={}, cepSanitizado={}", cep, cep);
-
-        ViaCepResponse viaCepResponse = viaCepClient.fetchAddress(cep);
+        ViaCepResponse viaCepResponse = viaCepClient.fetchAddress(sanitizedCep);
 
         AddressResponse response = AddressResponse.builder()
                 .street(viaCepResponse.getLogradouro())
@@ -71,11 +72,10 @@ public class AddressService {
                 .build();
 
         log.info("[ADDRESS_SERVICE] Endereço resolvido - cep={}, rua={}, cidade={}, estado={}",
-                cep, response.getStreet(), response.getCity(), response.getState());
+                sanitizedCep, response.getStreet(), response.getCity(), response.getState());
 
         return response;
     }
-
 
     /**
      * Validates that the CEP has exactly 8 numeric digits.
