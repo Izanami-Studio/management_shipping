@@ -15,8 +15,12 @@ public class LoggingCaffeineCache extends CaffeineCache {
     @Override
     protected Object lookup(Object key) {
         Object value = super.lookup(key);
-        if (log.isTraceEnabled()) {
-            log.trace("Cache {} [{}] key={}", value != null ? "HIT " : "MISS", getName(), key);
+        if (log.isInfoEnabled()) {
+            if (value != null) {
+                log.info("Cache HIT  [{}] key={}", getName(), key);
+            } else {
+                log.info("Cache MISS [{}] key={}", getName(), key);
+            }
         }
         return value;
     }

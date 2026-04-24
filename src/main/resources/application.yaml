@@ -20,16 +20,7 @@ viacep:
 
 logging:
   level:
-    com.izanami.management_shipping.config.LoggingCaffeineCache: TRACE
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus,caches
-  metrics:
-    enable:
-      cache: true
+    com.izanami.management_shipping.config.LoggingCaffeineCache: INFO
 
 springdoc:
   api-docs:
