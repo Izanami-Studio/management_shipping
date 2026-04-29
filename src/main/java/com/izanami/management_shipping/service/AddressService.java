@@ -4,8 +4,10 @@ import com.izanami.management_shipping.client.ViaCepClient;
 import com.izanami.management_shipping.dto.AddressResponse;
 import com.izanami.management_shipping.dto.ViaCepResponse;
 import com.izanami.management_shipping.exception.InvalidCepException;
+import com.izanami.management_shipping.util.CepSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -52,8 +54,10 @@ public class AddressService {
      * @throws com.izanami.management_shipping.exception.CepNotFoundException if the CEP does not exist in ViaCEP
      * @throws com.izanami.management_shipping.exception.ExternalApiException if there is a communication failure with ViaCEP
      */
+    @Cacheable(value = "address",
+            key = "T(com.izanami.management_shipping.util.CepSanitizer).sanitize(#cep)")
     public AddressResponse lookupAddress(String cep) {
-        String sanitizedCep = sanitizeCep(cep);
+        String sanitizedCep = CepSanitizer.sanitize(cep);
         validateCep(sanitizedCep);
 
         log.info("[ADDRESS_SERVICE] Iniciando consulta ViaCEP - cepOriginal={}, cepSanitizado={}", cep, sanitizedCep);
@@ -71,16 +75,6 @@ public class AddressService {
                 sanitizedCep, response.getStreet(), response.getCity(), response.getState());
 
         return response;
-    }
-
-    /**
-     * Removes non-numeric characters from the CEP.
-     *
-     * @param cep CEP with possible formatting (e.g., "01001-000")
-     * @return CEP containing only digits (e.g., "01001000")
-     */
-    private String sanitizeCep(String cep) {
-        return cep.replaceAll("[^0-9]", "");
     }
 
     /**

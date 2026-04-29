@@ -1,6 +1,9 @@
 spring:
   application:
     name: shipping-service
+cache:
+  ttl: 10m
+  size: 10000
 
 server:
   port: 8080
@@ -14,6 +17,10 @@ shipping:
 viacep:
   base-url: https://viacep.com.br/ws
   timeout: 5000
+
+logging:
+  level:
+    com.izanami.management_shipping.config.LoggingCaffeineCache: INFO
 
 springdoc:
   api-docs:
